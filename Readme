@@ -1,0 +1,265 @@
+Methodology:
+
+Roll Pitch and Yaw Detection
+
+Components Used:
+
+    1. Arduino Uno Board
+    2. MPU-GY521- 3 Axis Accelerometer and Gyroscope Module
+    3. Wires and Breadboard
+
+Configuration:
+
+
+Connections:
+
+VCC -> 3.3 V / 5 V (better)
+GND -> GND
+SCL -> A5
+SDA -> A4
+
+Methodology:
+
+After interfacing Arduino UNO and MPU Module, we programed the Arduino using MPU6050’s Library called MPU6050_light.h and Wire.h Library was used to configure SPI Protocol.
+We used getAngle function of the MPU library which calculates the angles along x, y and z axes using gyroscope. Two values for each angle were calculated after a small time interval. The intent was to calculate the derivative of each x, y and z angle and use the data in Naive Bayes Algorithm. 
+After implementing the formula of derivative, the next task was to record the values in a csv file for each Roll Pitch and Yaw Motion. This was done using a serial monitor tool. As a result we had three csv files for each motion with approximately 400 values each.
+
+ 
+
+Naive Bayes Classification:
+
+We applied Naive Bayes Classification to the above extracted data. The equation we have used is as follows:
+
+P(Pitch) = P(X | Pitch) x P(Y | Pitch) x P(Z | Pitch)
+P(Roll) = P(X | Roll) x P(Y | Roll) x P(Z | Roll)
+P(Yaw) = P(X | Yaw) x P(Y | Yaw) x P(Z | Yaw)
+
+Where X, Y and Z are the PDFs of angles along x, y and z axes. We are assuming that the PDFs of x, y and z angles in Roll, Pitch and Yaw data are Gaussian. This has been proved by visualizing the data. Above equations will not yield the exact probability as there is a constant missing. We don’t need the exact probabilities in our problem as only the comparison is required.
+
+What our algorithm does is that it first divides the data into the following data frames from the three csv files:
+
+
+pitchDataX : Derivative of angle x during Pitch Motion
+pitchDataY : Derivative of angle y during Pitch Motion
+pitchDataZ : Derivative of angle y during Pitch Motion
+
+rollDataX : Derivative of angle x during Roll Motion
+rollDataY : Derivative of angle y during Roll Motion
+rollDataZ : Derivative of angle z during Roll Motion
+
+yawDataX : Derivative of angle x during Yaw Motion
+yawDataY : Derivative of angle y during Yaw Motion
+yawDataZ : Derivative of angle z during Yaw Motion
+
+
+As discussed earlier, each of these data frames is a Gaussian distribution. A function called gaussianP is written which given the mean and standard deviation of a particular data frame, will give the probability of a particular point belonging to that data frame.
+
+This is used to calculate the conditional probabilities in the above Naive Bayes Equation.
+
+Once we have the conditional probabilities, we can easily find P(Pitch), P(Roll) and P(Yaw) and compare them to see if the detected motion is Roll, Pitch or Yaw.
+
+Code:
+
+import pandas as pd
+import numpy as np
+from math import exp
+from math import sqrt
+from math import pi
+import matplotlib.pyplot as plt
+import operator 
+
+
+def dataMean(x):
+return np.mean(x)
+
+def dataStd(x):
+return np.std(x)
+
+def gaussianP(x,mu,sigma):
+exponent = exp(-((x - mu) ** 2 / (2 * sigma ** 2)))
+return (1 / (sqrt(2 * pi) * sigma)) * exponent
+
+pitchData = pd.read_csv("~/Documents/Lectures Stochastic/Project/P.csv")
+pitchData.columns = ['X', 'Y', 'Z', 'Class']
+pitchDataX = pitchData['X'].to_numpy()
+pitchDataY = pitchData['Y'].to_numpy()
+pitchDataZ = pitchData['Z'].to_numpy()
+
+rollData = pd.read_csv("~/Documents/Lectures Stochastic/Project/R.csv")
+rollData.columns = ['X', 'Y', 'Z', 'Class']
+rollDataX = rollData['X'].to_numpy()
+rollDataY = rollData['Y'].to_numpy()
+rollDataZ = rollData['Z'].to_numpy()
+
+yawData = pd.read_csv("~/Documents/Lectures Stochastic/Project/Y.csv")
+yawData.columns = ['X', 'Y', 'Z', 'Class']
+yawDataX = yawData['X'].to_numpy()
+yawDataY = yawData['Y'].to_numpy()
+yawDataZ = yawData['Z'].to_numpy()
+
+testx = float(input("Enter X value "))
+testy = float(input("Enter Y value "))
+testz = float(input("Enter Z value "))
+
+# print("You Entered ", testx, " ", testy, " ", testz)
+
+PXgivenPitch = gaussianP( testx, dataMean(pitchDataX), dataStd(pitchDataX))
+PXgivenRoll = gaussianP( testx, dataMean(rollDataX), dataStd(rollDataX))
+PXgivenYaw = gaussianP( testx, dataMean(yawDataX), dataStd(yawDataX))
+
+PYgivenPitch = gaussianP( testy, dataMean(pitchDataY), dataStd(pitchDataY))
+PYgivenRoll = gaussianP( testy, dataMean(rollDataY), dataStd(rollDataY))
+PYgivenYaw = gaussianP( testy, dataMean(yawDataY), dataStd(yawDataY))
+
+PZgivenPitch = gaussianP( testz, dataMean(pitchDataZ), dataStd(pitchDataZ))
+PZgivenRoll = gaussianP( testz, dataMean(rollDataZ), dataStd(rollDataZ))
+PZgivenYaw = gaussianP( testz, dataMean(yawDataZ), dataStd(yawDataZ))
+
+PofPitch = PXgivenPitch * PYgivenPitch * PZgivenPitch
+PofRoll = PXgivenRoll * PYgivenRoll * PZgivenRoll
+PofYaw = PXgivenYaw * PYgivenYaw * PZgivenYaw
+
+probs = {"Pitch": PofPitch, "Roll" : PofRoll, "Yaw" : PofYaw}
+
+print ("P of Pitch ",PofPitch)
+print ("P of Roll ",PofRoll)
+print ("P of Yaw ",PofYaw)
+
+print(max(probs.items(), key=operator.itemgetter(1))[0])
+
+# print(np.max(test))
+
+# plt.hist(pitchDataX)
+# plt.show()
+
+
+
+
+
+
+
+
+
+
+
+Results:
+
+The dataset has been classified and set into different .csv files
+
+
+
+
+
+
+
+
+
+Applying Naive Bayes and predicting the class of new input values
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Sit-Down and Stand Up Motion Classification:
+
+This part of the project has been completed using Logistic Regression. We have used a dataset provided by Mendeley. We have only used the readings of accelerometer in y direction as that showed maximum variations. Each data sample has 127 features. These 127 features are distributed over a time period of 2.5 seconds. Only 80 samples have been used. This 80 sample data set is divided into train and test data. Model is trained on train data and is tested on test data and confusion matrix is created. 
+
+
+Code:
+
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn import metrics
+
+
+Dat = np.zeros((80,128))
+# standDat = np.zeros((40,127))
+rawData = pd.read_csv("~/Documents/Lectures Stochastic/Project/PatternClass/Stand-sit/Data_Sample.csv", header= None)
+
+
+
+a = 0
+b = 127
+
+
+
+
+for i in range (0,40):
+    temp1 = np.asarray(rawData[a:b].T)
+    temp1 = np.append(temp1, 0)
+    Dat[i] = temp1
+    # Dat[i] = rawData[a:b].T , 0
+    a = a + 254
+    b = b + 254
+
+
+a = 127
+b = 254
+
+
+for i in range (40,80):
+    temp2 = np.asarray(rawData[a:b].T)
+    temp2 = np.append(temp2, 1)
+    Dat[i] = temp2
+    # Dat[i] = rawData[a:b].T , 0
+    a = a + 254
+    b = b + 254
+
+
+
+X_data = Dat[0:80,0:127]
+Y_data = Dat[0:80,127]
+
+print (np.shape(X_data), np.shape(Y_data))
+print (Y_data)
+
+# for i in range (0,40):
+#     standDat[i] = rawData[a:b].T
+#     a = a + 127
+#     b = b + 127
+
+# print ("Sit Data \n", sitDat, "\n")
+# print ("Stand Data \n", standDat, "\n")
+
+
+X_train, X_test, Y_train, Y_test = train_test_split( X_data, Y_data, test_size=0.1, random_state=20 )
+logreg = LogisticRegression()
+
+
+
+print ("Y Test Shape ", np.shape(Y_test))
+print ("Y Train Shape ", np.shape(Y_train))
+
+logreg.fit(X_train,Y_train)
+y_pred=logreg.predict(X_test)
+
+cnf_matrix = metrics.confusion_matrix(Y_test, y_pred)
+print(cnf_matrix)
+
+
+
+
+Results:
+
+For Stand and Sit motion, we classify them into 0 and 1.
+
+Then we implement the Logistic Regression Algorithm and Confusion Matrix shows the result and reliability of the model.
+
+Currently the accuracy is 75%. The model reliability can be improved with increase in number of datapoints.
+
